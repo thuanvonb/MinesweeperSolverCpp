@@ -14,6 +14,16 @@ vector<vector<int>> Solver::getCombinations(int n, int r) const {
   return out;
 }
 
+static uint64_t bounded_nCr(uint16_t n, uint16_t r, uint64_t bound = -1) {
+  uint64_t out = 1;
+  for (int i = 1; i <= r; ++i) {
+    out = out * (n - i + 1) / i;
+    if (out >= bound)
+      return bound;
+  }
+  return out;
+}
+
 Solver::Solver(vector<vector<int>> rd) : board(rd) {
   for (int i = 0; i < board.height; ++i) {
     for (int j = 0; j < board.width; ++j) {
@@ -206,6 +216,7 @@ bool Solver::iterativeSolve() {
   return true;
 }
 
+// Combine the result of each chain together.
 void combineChainMineCount(const vector<Solver::ChainSolution>& chain_sols, vector<vector<int>>& mines, 
                            vector<int>& offset, vector<int>& config, int& minMines, int id = 0) {
   if (id == 0) {
@@ -289,7 +300,7 @@ bool Solver::generalSolve(int mines) { // number of unsolved mines (flags in the
   int minMines;
   combineChainMineCount(chain_sols, cmines, offset, config, minMines);
   vector<int> weight(cmines.size(), 0);
-  int l = offset.size() == 1 ? (int) config.size() : offset[1];
+  int l = offset.size() <= 1 ? (int) config.size() : offset[1];
   for (int i = 0; i < cmines.size(); ++i) {
     for (int j = 0; j < l; ++j)
       weight[i] += cmines[i][j];
@@ -310,29 +321,34 @@ bool Solver::generalSolve(int mines) { // number of unsolved mines (flags in the
   int sumW = 0;
   for (int i = low; i <= high; ++i)
     sumW += weight[i];
-  for (int i = low; i <= high; ++i)
-    noMinesProb[i-low] = 1. * weight[i] / sumW;
 
-  int idx = 0;
-  for (const Solver::ChainSolution& cs : chain_sols) {
-    int nCells = cs.relatedCells.size();
-    int nV = cs.freq_mines_pos.size();
-    int i = 0;
-    for (Cell* c : cs.relatedCells) {
-      double prob = 0;
-      for (int k = low; k <= high; ++k) {
-        double imProb = 0;
-        for (int j = 0; j < nV; ++j) {
-          double p1 = 1.*cs.freq_mines_pos[j][i] / cs.freq_no_mines[j];
-          double p2 = 1.*cmines[k][j+offset[idx]] / weight[k];
-          imProb += p1*p2;
+  if (sumW == 0)
+    weight[0] = 1;
+  else {
+    for (int i = low; i <= high; ++i)
+      noMinesProb[i-low] = 1. * weight[i] / sumW;
+
+    int idx = 0;
+    for (const Solver::ChainSolution& cs : chain_sols) {
+      int nCells = cs.relatedCells.size();
+      int nV = cs.freq_mines_pos.size();
+      int i = 0;
+      for (Cell* c : cs.relatedCells) {
+        double prob = 0;
+        for (int k = low; k <= high; ++k) {
+          double imProb = 0;
+          for (int j = 0; j < nV; ++j) {
+            double p1 = 1.*cs.freq_mines_pos[j][i] / cs.freq_no_mines[j];
+            double p2 = 1.*cmines[k][j+offset[idx]] / weight[k];
+            imProb += p1*p2;
+          }
+          prob += imProb * noMinesProb[k-low];
         }
-        prob += imProb * noMinesProb[k-low];
+        c->minePerc = prob*100;
+        i += 1;
       }
-      c->minePerc = prob*100;
-      i += 1;
+      idx += 1;
     }
-    idx += 1;
   }
 
   double expectedExposedMines = 0;
@@ -341,6 +357,23 @@ bool Solver::generalSolve(int mines) { // number of unsolved mines (flags in the
   double expectedRemain = mines - expectedExposedMines;
   for (Cell* c : noNeighbors)
     c->minePerc = expectedRemain / noNeighbors.size() * 100;
+
+  uint32_t numberOfConfiguration = 0;
+  const uint64_t bound = (uint64_t) 1e7;
+  for (int numMines = low; numMines <= high; ++numMines) {
+    uint64_t nConfig = weight[numMines] * bounded_nCr(noNeighbors.size(), mines - (numMines + minMines), bound);
+    if (nConfig == bound)
+      break;
+    numberOfConfiguration += nConfig;
+    if (numberOfConfiguration >= bound)
+      numberOfConfiguration = bound;
+  }
+  
+  cout << "Number of configurations: " << numberOfConfiguration << std::endl;
+  if (numberOfConfiguration == bound)
+    cout << "Not be directly solvable" << std::endl;
+  else
+    cout << "Can be directly solvable" << std::endl;
 
   return true;
 }
@@ -400,14 +433,18 @@ vector<vector<Group*>> Solver::getGroupChains() const {
       process.pop();
       if (added.find(next->id) != added.end())
         continue;
-      chain.push_back(next);
       added.insert(next->id);
+      if (next->groupcells.size() == 0)
+        continue;
+      chain.push_back(next);
       for (Cell* c : next->groupcells) {
         for (Group* g : c->groups)
           process.push(g);
       }
     }
-    out.push_back(chain);
+
+    if (chain.size() > 0)
+      out.push_back(chain);
   }
 
   return out;
