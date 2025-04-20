@@ -4,6 +4,7 @@
 #include "Solver.h"
 #include <map>
 #include <algorithm>
+#include <numeric>
 
 using std::ifstream;
 using std::cout;
@@ -12,58 +13,41 @@ using std::vector;
 using std::map;
 using std::pair;
 using std::sort;
+using std::prev_permutation;
 
-void combineChainMineCount(const vector<Solver::ChainSolution>& chain_sols, vector<vector<int>>& mines, vector<int>& offset,
-                           vector<int>& config, int id = 0) {
-  if (id == 0) {
-    mines.clear();
-    offset.clear();
-    config.clear();
-    int r = 0;
-    int c = 0;
-    for (const Solver::ChainSolution& cs : chain_sols) {
-      r += cs.no_mines.back();
-      offset.push_back(c);
-      c += cs.no_mines.size();
-    }
-    mines = vector<vector<int>>(r+1, vector<int>(c, 0));
-    config = vector<int>(c, 0);
-  }
+#define byte int8_t
 
+void combineAllGroupsConfigs(const vector<Solver::ChainSolution>& chain_sols, vector<vector<byte>>& all_configs,
+                             vector<byte>& config, int mines, int id = 0, int arr_idx = 0) {
   if (id == chain_sols.size()) {
-    int sumMines = 0;
-    int weight = 1;
-    int n = config.size();
-    int c = 0;
-    int t = 0;
-    for (int i = 0; i < n; ++i) {
-      int l = chain_sols[c].no_mines.size();
-      if (i-t >= l) {
-        t += l;
-        c += 1;
-      }
+    int remaining = config.size() - arr_idx;
+    if (mines > remaining)
+      return;
 
-      if (config[i] == 0)
-        continue;
+    vector<byte> bitmask(remaining, 0);
+    for (int i = 0; i < mines; ++i)
+      bitmask[i] = -1;
 
-      weight *= config[i];
-      sumMines += chain_sols[c].no_mines[i-t];
-    }
-    
-    for (int i = 0; i < n; ++i) {
-      if (config[i] == 0)
-        continue;
-      mines[sumMines][i] += weight;
-    }
+    do {
+      for (int i = 0; i < remaining; ++i)
+        config[i + arr_idx] = bitmask[i];
+      all_configs.push_back(config);
+    } while (next_permutation(bitmask.begin(), bitmask.end()));
+
     return;
   }
 
-  const Solver::ChainSolution& cs = chain_sols[id];
-  int n = cs.no_mines.size();
-  for (int i = 0; i < n; ++i) {
-    config[i + offset[id]] = cs.freq_no_mines[i];
-    combineChainMineCount(chain_sols, mines, offset, config, id+1);
-    config[i + offset[id]] = 0;
+  for (const vector<int>& conf : chain_sols[id].all_configs) {
+    int nMines = 0;
+    for (int i = 0; i < conf.size(); ++i) {
+      bool n = conf[i];
+      nMines += n;
+      config[i + arr_idx] = -n;
+    }
+
+    if (nMines > mines)
+      continue;
+    combineAllGroupsConfigs(chain_sols, all_configs, config, mines - nMines, id + 1, arr_idx + conf.size());
   }
 }
 
@@ -79,11 +63,30 @@ int main() {
   }
 
   Solver solver(rd);
-  cout << "Start solving\n";
+  /*cout << "Start solving\n";
   bool valid = solver.generalSolve(mines);
   cout << "Done solving\n";
   
-  solver.printProb();
+  solver.printProb();*/
+
+  vector<vector<Group*>> chains = solver.getGroupChains();
+  vector<Solver::ChainSolution> chain_sols;
+  for (const vector<Group*>& g : chains)
+    chain_sols.push_back(solver.solveChain(g));
+
+  vector<Cell*> allCells;
+  for (const Solver::ChainSolution& cs : chain_sols) {
+    allCells.insert(allCells.end(), cs.relatedCells.begin(), cs.relatedCells.end());
+  }
+
+  vector<Cell*> noNeighbors = solver.board.noNeighborsCells();
+  allCells.insert(allCells.end(), noNeighbors.begin(), noNeighbors.end());
+
+  vector<byte> config(allCells.size(), false);
+  vector<vector<byte>> all_configs;
+  combineAllGroupsConfigs(chain_sols, all_configs, config, mines);
+
+
 
   return 0;
 }

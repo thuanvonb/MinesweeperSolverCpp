@@ -452,11 +452,12 @@ vector<vector<Group*>> Solver::getGroupChains() const {
 
 void Solver::solveRec(const vector<Group*>& chain, const vector<int>& order, 
                       const vector<vector<int>>& group_cells_id, vector<int>& freq_no_mines, 
-                      vector<vector<int>>& freq_mines_pos, vector<int>& sol, int id) const {
+                      vector<vector<int>>& freq_mines_pos, vector<int>& sol, vector<vector<int>>& all_configs, int id) const {
   if (id == order.size()) {
     int sumMines = 0;
     for (int v : sol)
       sumMines += v;
+    all_configs.push_back(sol);
     freq_no_mines[sumMines] += 1;
     int i = 0;
     for (int v : sol)
@@ -491,7 +492,7 @@ void Solver::solveRec(const vector<Group*>& chain, const vector<int>& order,
       int i = 0;
       for (int j : to_assign)
         sol[j] = a_try[i++];
-      solveRec(chain, order, group_cells_id, freq_no_mines, freq_mines_pos, sol, id+1);
+      solveRec(chain, order, group_cells_id, freq_no_mines, freq_mines_pos, sol, all_configs, id+1);
     }
   }
 
@@ -566,7 +567,8 @@ Solver::ChainSolution Solver::solveChain(const vector<Group*>& chain) const {
   }
 
   vector<int> sol(nCells, -1);
-  solveRec(chain, processQ, groups_cell_id, freq_no_mines, freq_mines_pos, sol);
+  vector<vector<int>> all_configs;
+  solveRec(chain, processQ, groups_cell_id, freq_no_mines, freq_mines_pos, sol, all_configs);
 
   vector<int> no_mines;
   vector<int> freq_no_mines_out;
@@ -583,7 +585,8 @@ Solver::ChainSolution Solver::solveChain(const vector<Group*>& chain) const {
     relatedCells, 
     no_mines, 
     freq_no_mines_out,
-    freq_mines_pos_out
+    freq_mines_pos_out,
+    all_configs
   };
 }
 

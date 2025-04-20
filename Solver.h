@@ -18,7 +18,8 @@ private:
   vector<int> auxiliary;
   vector<vector<int>> getCombinations(int n, int r) const;
   void solveRec(const vector<Group*>& chain, const vector<int>& order, const vector<vector<int>>& group_cells_id,
-                vector<int>& freq_no_mines, vector<vector<int>>& freq_mines_pos, vector<int>& sol, int id = 0) const;
+                vector<int>& freq_no_mines, vector<vector<int>>& freq_mines_pos, 
+                vector<int>& sol, vector<vector<int>>& all_configs, int id = 0) const;
 
 public:
   struct ChainSolution {
@@ -26,6 +27,7 @@ public:
     vector<int> no_mines;
     vector<int> freq_no_mines;
     vector<vector<int>> freq_mines_pos;
+    vector<vector<int>> all_configs;
   };
 
   Board board;

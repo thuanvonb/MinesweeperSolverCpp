@@ -76,6 +76,9 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <Optimization>MaxSpeed</Optimization>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -129,6 +132,7 @@
   <ItemGroup>
     <ClCompile Include="Board.cpp" />
     <ClCompile Include="Cell.cpp" />
+    <ClCompile Include="EndgameSolver.cpp" />
     <ClCompile Include="Group.cpp" />
     <ClCompile Include="MinesweeperSolver.cpp" />
     <ClCompile Include="Solver.cpp" />
@@ -137,6 +141,7 @@
     <ClInclude Include="Board.h" />
     <ClInclude Include="Cell.h" />
     <ClInclude Include="CellValue.h" />
+    <ClInclude Include="EndgameSolver.h" />
     <ClInclude Include="Group.h" />
     <ClInclude Include="Macros.h" />
     <ClInclude Include="Solver.h" />
