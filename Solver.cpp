@@ -25,11 +25,20 @@ static uint64_t bounded_nCr(uint16_t n, uint16_t r, uint64_t bound = -1) {
 }
 
 Solver::Solver(vector<vector<int>> rd) : board(rd) {
+  valid_input = true;
   for (int i = 0; i < board.height; ++i) {
     for (int j = 0; j < board.width; ++j) {
+      Cell* c = board.getCellMutable(i, j);
+      if (c->value == CELL_SAFE) {
+        c->minePerc = 0;
+        this->solvedCells.insert(c);
+        continue;
+      }
       Group* group = new Group(i, j, board);
       if (group->minV == 0 && group->maxV == 0 && group->groupcells.size() == 0)
         continue;
+      if (group->maxV < 0 || group->minV > group->groupcells.size())
+        valid_input = false;
       if (board.data.size() != (size_t) 0)
         addGroup(group);
     }
@@ -44,6 +53,8 @@ Solver::Solver(vector<vector<int>> rd) : board(rd) {
       t >>= 1;
     }
   }
+
+  noNeighbors = board.noNeighborsCells();
 }
 
 void Solver::addGroup(Group* g) {
@@ -70,11 +81,6 @@ void Solver::crossAllGroups() {
             continue;
           if (c->groups[y]->id >= maxGroupId)
             continue;
-
-          if (c->groups[x]->id == 10 && c->groups[y]->id == 11)
-            i = i;
-          if (c->groups[x]->id == 11 && c->groups[y]->id == 10)
-            j = j;
 
           vector<Group*> newGroups = c->groups[x]->cross((*c->groups[y]));
           for (Group* g : newGroups)
@@ -223,16 +229,16 @@ void combineChainMineCount(const vector<Solver::ChainSolution>& chain_sols, vect
     mines.clear();
     offset.clear();
     config.clear();
-    int r = 0;
+    int maxMines = 0;
     int c = 0;
     minMines = 0;
     for (const Solver::ChainSolution& cs : chain_sols) {
-      r += cs.no_mines.back();
+      maxMines += cs.no_mines.back();
       minMines += cs.no_mines.front();
       offset.push_back(c);
       c += (int) cs.no_mines.size();
     }
-    mines = vector<vector<int>>(r + 1 - minMines, vector<int>(c, 0));
+    mines = vector<vector<int>>(maxMines + 1 - minMines, vector<int>(c, 0));
     config = vector<int>(c, 0);
   }
 
@@ -274,6 +280,9 @@ void combineChainMineCount(const vector<Solver::ChainSolution>& chain_sols, vect
 }
 
 bool Solver::generalSolve(int mines) { // number of unsolved mines (flags in the input do not count)
+  if (!valid_input)
+    return false;
+
   bool valid = iterativeSolve();
   if (!valid)
     return false;
@@ -286,8 +295,6 @@ bool Solver::generalSolve(int mines) { // number of unsolved mines (flags in the
 
   if (mines < 0)
     return false;
-
-  vector<Cell*> noNeighbors = board.noNeighborsCells();
 
   vector<vector<Group*>> chains = getGroupChains();
   vector<Solver::ChainSolution> chain_sols;
@@ -304,7 +311,7 @@ bool Solver::generalSolve(int mines) { // number of unsolved mines (flags in the
   for (int i = 0; i < cmines.size(); ++i) {
     for (int j = 0; j < l; ++j)
       weight[i] += cmines[i][j];
-    
+    //
   }
 
   int low = 0, high = (int) cmines.size()-1;
@@ -325,8 +332,15 @@ bool Solver::generalSolve(int mines) { // number of unsolved mines (flags in the
   if (sumW == 0)
     weight[0] = 1;
   else {
+    vector<int> remaining_mines(weight.size(), 0);
+    for (int i = low; i <= high; ++i) {
+      int no_mines = i + minMines;
+      remaining_mines[i] = mines - no_mines;
+    }
+
+    vector<double> p = computeNormalizedBinomials(noNeighbors.size(), remaining_mines, weight);
     for (int i = low; i <= high; ++i)
-      noMinesProb[i-low] = 1. * weight[i] / sumW;
+      noMinesProb[i-low] = p[i-low];
 
     int idx = 0;
     for (const Solver::ChainSolution& cs : chain_sols) {
@@ -358,7 +372,7 @@ bool Solver::generalSolve(int mines) { // number of unsolved mines (flags in the
   for (Cell* c : noNeighbors)
     c->minePerc = expectedRemain / noNeighbors.size() * 100;
 
-  uint32_t numberOfConfiguration = 0;
+  /*uint32_t numberOfConfiguration = 0;
   const uint64_t bound = (uint64_t) 1e7;
   for (int numMines = low; numMines <= high; ++numMines) {
     uint64_t nConfig = weight[numMines] * bounded_nCr(noNeighbors.size(), mines - (numMines + minMines), bound);
@@ -373,7 +387,7 @@ bool Solver::generalSolve(int mines) { // number of unsolved mines (flags in the
   if (numberOfConfiguration == bound)
     cout << "Not be directly solvable" << std::endl;
   else
-    cout << "Can be directly solvable" << std::endl;
+    cout << "Can be directly solvable" << std::endl;*/
 
   return true;
 }
@@ -594,9 +608,7 @@ bool Solver::filter() {
   int maxId = (int) groups.size();
   for (int i = 0; i < maxId; ++i) {
     Group* g = groups[i];
-    if (i == 9)
-      i = i;
-    //cout << i << "\n";
+
     if (g->disabled)
       continue;
     set<Cell*> intersect = g->intersect(solvedCells);

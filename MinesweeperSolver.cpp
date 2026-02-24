@@ -5,6 +5,9 @@
 #include <map>
 #include <algorithm>
 #include <numeric>
+#include <stdlib.h>
+
+#define BUILD_EMSDK
 
 using std::ifstream;
 using std::cout;
@@ -51,7 +54,36 @@ void combineAllGroupsConfigs(const vector<Solver::ChainSolution>& chain_sols, ve
   }
 }
 
+#ifdef BUILD_EMSDK
+extern "C" {
+  bool solveBoard(int nrows, int ncols, int* nums, int mines, float* prob);
+}
+#endif
+
+bool solveBoard(int nrows, int ncols, int* nums, int mines, float* prob) {
+  vector<vector<int>> rd(nrows, vector<int>(ncols));
+  for (int i = 0; i < nrows; ++i) {
+    for (int j = 0; j < ncols; ++j)
+      rd[i][j] = nums[i * ncols + j];
+  }
+
+  Solver solver(rd);
+  bool valid = solver.generalSolve(mines);
+  
+  if (valid) {
+    for (int i = 0; i < nrows; ++i) {
+      for (int j = 0; j < ncols; ++j) {
+        const Cell* cell = solver.board.getCell(i, j);
+        prob[i*ncols + j] = cell->minePerc;
+      }
+    }
+  }
+
+  return valid;
+}
+
 int main() {
+#ifndef BUILD_EMSDK
   ifstream inp("minesweeper.inp");
   int h, w, mines;
   inp >> h >> w >> mines;
@@ -63,11 +95,13 @@ int main() {
   }
 
   Solver solver(rd);
-  /*cout << "Start solving\n";
+  cout << "Start solving\n";
   bool valid = solver.generalSolve(mines);
   cout << "Done solving\n";
   
-  solver.printProb();*/
+  solver.printProb();
+
+  return 0;
 
   vector<vector<Group*>> chains = solver.getGroupChains();
   vector<Solver::ChainSolution> chain_sols;
@@ -86,7 +120,7 @@ int main() {
   vector<vector<byte>> all_configs;
   combineAllGroupsConfigs(chain_sols, all_configs, config, mines);
 
-
-
+#endif
+  
   return 0;
 }

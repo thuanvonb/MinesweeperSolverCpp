@@ -2,6 +2,7 @@
 
 #include "Board.h"
 #include "Group.h"
+#include "Utils.h"
 #include <iostream>
 #include <queue>
 #include <stack>
@@ -34,6 +35,8 @@ public:
   vector<Group*> groups;
   set<Cell*> solvedCells;
   bool solved;
+  bool valid_input;
+  vector<Cell*> noNeighbors;
   
   Solver(vector<vector<int>> rd);
   void addGroup(Group* g);
