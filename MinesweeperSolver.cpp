@@ -2,72 +2,64 @@
 #include <fstream>
 #include <vector>
 #include "Solver.h"
-#include <map>
-#include <algorithm>
+#include "EndgameSolver.h"
+
+// #define BUILD_EMSDK
 
 using std::ifstream;
 using std::cout;
-using std::endl;
 using std::vector;
-using std::map;
-using std::pair;
-using std::sort;
 
-void combineChainMineCount(const vector<Solver::ChainSolution>& chain_sols, vector<vector<int>>& mines, vector<int>& offset,
-                           vector<int>& config, int id = 0) {
-  if (id == 0) {
-    mines.clear();
-    offset.clear();
-    config.clear();
-    int r = 0;
-    int c = 0;
-    for (const Solver::ChainSolution& cs : chain_sols) {
-      r += cs.no_mines.back();
-      offset.push_back(c);
-      c += cs.no_mines.size();
-    }
-    mines = vector<vector<int>>(r+1, vector<int>(c, 0));
-    config = vector<int>(c, 0);
+#ifdef BUILD_EMSDK
+extern "C" {
+  bool solveBoard(int nrows, int ncols, int* nums, int mines, float* prob);
+  bool solveEndgame(int nrows, int ncols, int* nums, int mines, float* winProb, int* bestRow, int* bestCol);
+}
+#endif
+
+bool solveBoard(int nrows, int ncols, int* nums, int mines, float* prob) {
+  vector<vector<int>> rd(nrows, vector<int>(ncols));
+  for (int i = 0; i < nrows; ++i) {
+    for (int j = 0; j < ncols; ++j)
+      rd[i][j] = nums[i * ncols + j];
   }
 
-  if (id == chain_sols.size()) {
-    int sumMines = 0;
-    int weight = 1;
-    int n = config.size();
-    int c = 0;
-    int t = 0;
-    for (int i = 0; i < n; ++i) {
-      int l = chain_sols[c].no_mines.size();
-      if (i-t >= l) {
-        t += l;
-        c += 1;
+  Solver solver(rd);
+  bool valid = solver.generalSolve(mines);
+  
+  if (valid) {
+    for (int i = 0; i < nrows; ++i) {
+      for (int j = 0; j < ncols; ++j) {
+        const Cell* cell = solver.board.getCell(i, j);
+        prob[i*ncols + j] = cell->minePerc;
       }
-
-      if (config[i] == 0)
-        continue;
-
-      weight *= config[i];
-      sumMines += chain_sols[c].no_mines[i-t];
     }
-    
-    for (int i = 0; i < n; ++i) {
-      if (config[i] == 0)
-        continue;
-      mines[sumMines][i] += weight;
-    }
-    return;
   }
 
-  const Solver::ChainSolution& cs = chain_sols[id];
-  int n = cs.no_mines.size();
-  for (int i = 0; i < n; ++i) {
-    config[i + offset[id]] = cs.freq_no_mines[i];
-    combineChainMineCount(chain_sols, mines, offset, config, id+1);
-    config[i + offset[id]] = 0;
+  return valid;
+}
+
+bool solveEndgame(int nrows, int ncols, int* nums, int mines, float* winProb, int* bestRow, int* bestCol) {
+  vector<vector<int>> rd(nrows, vector<int>(ncols));
+  for (int i = 0; i < nrows; ++i) {
+    for (int j = 0; j < ncols; ++j)
+      rd[i][j] = nums[i * ncols + j];
   }
+
+  EndgameSolver endgame(rd);
+  EndgameResult result = endgame.solveEndgame(mines);
+
+  if (result.valid) {
+    *winProb = (float)result.winProbability;
+    *bestRow = result.bestRow;
+    *bestCol = result.bestCol;
+  }
+
+  return result.valid;
 }
 
 int main() {
+#ifndef BUILD_EMSDK
   ifstream inp("minesweeper.inp");
   int h, w, mines;
   inp >> h >> w >> mines;
@@ -82,8 +74,23 @@ int main() {
   cout << "Start solving\n";
   bool valid = solver.generalSolve(mines);
   cout << "Done solving\n";
-  
-  solver.printProb();
+
+  if (valid)
+    solver.printProb();
+
+  // Try endgame solver
+  cout << "\nEndgame solver:\n";
+  EndgameSolver endgame(rd);
+  EndgameResult egResult = endgame.solveEndgame(mines);
+  if (egResult.valid) {
+    printf("Win probability: %.4f%%\n", egResult.winProbability * 100.0);
+    printf("Best move: (%d, %d)\n", egResult.bestRow, egResult.bestCol);
+    printf("Configs: %d, Cells: %d\n", endgame.numConfigs, endgame.numCells);
+  } else {
+    cout << "Endgame solver not applicable (too many configs or cells)\n";
+  }
+
+#endif
 
   return 0;
 }

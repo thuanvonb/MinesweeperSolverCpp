@@ -21,7 +21,7 @@ Group::Group(int row, int col, Board& board) : Group() {
         continue;
       if (v == CELL_UNDISCOVERED)
         groupcells.insert(board.getCellMutable(nr, nc));
-      else
+      else if (v == CELL_FLAG)
         mines -= 1;
     }
   }

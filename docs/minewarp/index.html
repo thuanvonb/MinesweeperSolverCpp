@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minesweeper - A Game of Trust Issues</title>
+  <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+  <div class="stat float-stats" style='width: 150px; z-index: 30'>
+    ⚡ <div id='warp-energy'>0</div>/5
+  </div>
+  <div class="container">
+    <h1>💣 Minesweeper</h1>
+    <div class="subtitle">Now with mine warping ability (BETA)</div>
+    
+    <div class="controls">
+      <!-- <div> -->
+        <select id="difficulty">
+          <option value="easy">Beginner</option>
+          <option value="medium">Intermediate</option>
+          <option value="hard">Expert</option>
+          <option id='custom-opt' value="custom">Custom size...</option>
+        </select>
+        <div id='control-btns'>
+          <button onclick="initGame()">New Game</button>
+        </div>
+      <!-- </div> -->
+    </div>
+
+    <div class="stats">
+      <div class="stat">🚩 <span id="flags">10</span></div>
+      <div class="stat">⏱️ <span id="timer">0</span></div>
+    </div>
+    
+    <div class='board-container'>
+      <div class="board" id="board"></div>
+    </div>
+    <div class="analysis-legend" id="legend" style="display:none;">
+      <div class="legend-item"><div class="legend-color" style="background:#27ae60;"></div> Safe (0%)</div>
+      <div class="legend-item"><div class="legend-color" style="background:#f39c12;"></div> Uncertain</div>
+      <div class="legend-item"><div class="legend-color" style="background:#e74c3c;"></div> Mine (100%)</div>
+    </div>
+    <div class="message" id="message" style="display:none;"></div>
+    <div id='warp-btns'>
+      <button id='warpBtn' onclick="toggleWarpMode()">Enter warp mode</button>
+      <button id='commitWarp' style='display: none; z-index: 30;' disabled>Commit warps!</button>
+    </div>
+    <div class="instructions">Left-click to reveal • Right-click to flag • Both-click to chord • Don't blow up</div>
+  </div>
+
+  <div class="modal-overlay" id="customModal">
+    <div class="modal">
+      <h2>Custom Board</h2>
+      <p class="modal-subtitle">Design your own suffering</p>
+      <div class="modal-inputs">
+        <div class="input-group">
+          <label>Width</label>
+          <input type="number" id="customWidth" min="5" max="50" value="16">
+        </div>
+        <div class="input-group">
+          <label>Height</label>
+          <input type="number" id="customHeight" min="5" max="30" value="16">
+        </div>
+        <div class="input-group">
+          <label>Mines</label>
+          <input type="number" id="customMines" min="1" max="500" value="40">
+        </div>
+      </div>
+      <div class="preset-buttons">
+        <button class="preset-btn" onclick="setMinePercent(10)">10% mines</button>
+        <button class="preset-btn" onclick="setMinePercent(15)">15% mines</button>
+        <button class="preset-btn" onclick="setMinePercent(20)">20% mines</button>
+        <button class="preset-btn" onclick="setMinePercent(25)">25% mines</button>
+      </div>
+      <div class="modal-footer">
+        <button class="cancel-btn" onclick="closeModal()">Cancel</button>
+        <div class="modal-stats">
+          <span id="totalTiles">256 tiles</span> • <span id="minePercent">15.6%</span>
+        </div>
+        <button class="submit-btn" onclick="submitCustom()">Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="text/javascript" src="/MinesweeperSolver.js"></script>
+  <script src='Minesweeper.js'></script>
+  <div id="warp-overlay" style='display: none'>
+    <!-- <div id='warp-desc'>
+      Welcome to warp mode! <br>
+      Here, you can spend warp energy to set the outcome of the cell however you want. <br>
+      <br>
+      You can warp a cell to be safe or to has mine. <br>
+      The energy will be spent based on the probability at which the cell is in the state you want. <br>
+      The lower the probability, the more energy will be spent. <br>
+      You can refer to the table below for common probabilities encountered. <br> <br>
+
+      Note that you can not warp to impossible states.<br>
+    </div>
+    <div id='warp-table'>
+      <table>
+        <thead>
+          <th>State probability</th>
+          <th>Energy spent</th>
+        </thead>
+        <tbody>
+          <tr><td>100%</td><td>0</td></tr>
+          <tr><td>75%</td><td>0.415</td></tr>
+          <tr><td>50%</td><td>1</td></tr>
+          <tr><td>33.33%</td><td>1.585</td></tr>
+          <tr><td>25%</td><td>2</td></tr>
+          <tr><td>12.5%</td><td>3</td></tr>
+          <tr><td>10%</td><td>3.322</td></tr>
+          <tr><td>0%</td><td>∞</td></tr>
+        </tbody>
+      </table> -->
+    </div>
+  </div>
+</body>
+</html>
