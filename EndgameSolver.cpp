@@ -5,11 +5,41 @@
 
 using std::queue;
 
-// Defined in MinesweeperSolver.cpp
-extern void combineAllGroupsConfigs(
-  const vector<Solver::ChainSolution>& chain_sols,
-  vector<vector<int8_t>>& all_configs,
-  vector<int8_t>& config, int mines, int id, int arr_idx);
+#define byte int8_t
+
+void combineAllGroupsConfigs(const vector<Solver::ChainSolution>& chain_sols, vector<vector<byte>>& all_configs,
+                             vector<byte>& config, int mines, int id = 0, int arr_idx = 0) {
+  if (id == chain_sols.size()) {
+    int remaining = config.size() - arr_idx;
+    if (mines > remaining)
+      return;
+
+    vector<byte> bitmask(remaining, 0);
+    for (int i = 0; i < mines; ++i)
+      bitmask[i] = -1;
+
+    do {
+      for (int i = 0; i < remaining; ++i)
+        config[i + arr_idx] = bitmask[i];
+      all_configs.push_back(config);
+    } while (next_permutation(bitmask.begin(), bitmask.end()));
+
+    return;
+  }
+
+  for (const vector<int>& conf : chain_sols[id].all_configs) {
+    int nMines = 0;
+    for (int i = 0; i < conf.size(); ++i) {
+      bool n = conf[i];
+      nMines += n;
+      config[i + arr_idx] = -n;
+    }
+
+    if (nMines > mines)
+      continue;
+    combineAllGroupsConfigs(chain_sols, all_configs, config, mines - nMines, id + 1, arr_idx + conf.size());
+  }
+}
 
 EndgameSolver::EndgameSolver(vector<vector<int>> rd) : solver(rd) {
   numCells = 0;
