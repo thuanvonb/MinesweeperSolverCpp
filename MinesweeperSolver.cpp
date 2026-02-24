@@ -2,12 +2,13 @@
 #include <fstream>
 #include <vector>
 #include "Solver.h"
+#include "EndgameSolver.h"
 #include <map>
 #include <algorithm>
 #include <numeric>
 #include <stdlib.h>
 
-#define BUILD_EMSDK
+// #define BUILD_EMSDK
 
 using std::ifstream;
 using std::cout;
@@ -57,6 +58,7 @@ void combineAllGroupsConfigs(const vector<Solver::ChainSolution>& chain_sols, ve
 #ifdef BUILD_EMSDK
 extern "C" {
   bool solveBoard(int nrows, int ncols, int* nums, int mines, float* prob);
+  bool solveEndgame(int nrows, int ncols, int* nums, int mines, float* winProb, int* bestRow, int* bestCol);
 }
 #endif
 
@@ -82,6 +84,25 @@ bool solveBoard(int nrows, int ncols, int* nums, int mines, float* prob) {
   return valid;
 }
 
+bool solveEndgame(int nrows, int ncols, int* nums, int mines, float* winProb, int* bestRow, int* bestCol) {
+  vector<vector<int>> rd(nrows, vector<int>(ncols));
+  for (int i = 0; i < nrows; ++i) {
+    for (int j = 0; j < ncols; ++j)
+      rd[i][j] = nums[i * ncols + j];
+  }
+
+  EndgameSolver endgame(rd);
+  EndgameResult result = endgame.solveEndgame(mines);
+
+  if (result.valid) {
+    *winProb = (float)result.winProbability;
+    *bestRow = result.bestRow;
+    *bestCol = result.bestCol;
+  }
+
+  return result.valid;
+}
+
 int main() {
 #ifndef BUILD_EMSDK
   ifstream inp("minesweeper.inp");
@@ -98,29 +119,23 @@ int main() {
   cout << "Start solving\n";
   bool valid = solver.generalSolve(mines);
   cout << "Done solving\n";
-  
-  solver.printProb();
 
-  return 0;
+  if (valid)
+    solver.printProb();
 
-  vector<vector<Group*>> chains = solver.getGroupChains();
-  vector<Solver::ChainSolution> chain_sols;
-  for (const vector<Group*>& g : chains)
-    chain_sols.push_back(solver.solveChain(g));
-
-  vector<Cell*> allCells;
-  for (const Solver::ChainSolution& cs : chain_sols) {
-    allCells.insert(allCells.end(), cs.relatedCells.begin(), cs.relatedCells.end());
+  // Try endgame solver
+  cout << "\nEndgame solver:\n";
+  EndgameSolver endgame(rd);
+  EndgameResult egResult = endgame.solveEndgame(mines);
+  if (egResult.valid) {
+    printf("Win probability: %.4f%%\n", egResult.winProbability * 100.0);
+    printf("Best move: (%d, %d)\n", egResult.bestRow, egResult.bestCol);
+    printf("Configs: %d, Cells: %d\n", endgame.numConfigs, endgame.numCells);
+  } else {
+    cout << "Endgame solver not applicable (too many configs or cells)\n";
   }
 
-  vector<Cell*> noNeighbors = solver.board.noNeighborsCells();
-  allCells.insert(allCells.end(), noNeighbors.begin(), noNeighbors.end());
-
-  vector<byte> config(allCells.size(), false);
-  vector<vector<byte>> all_configs;
-  combineAllGroupsConfigs(chain_sols, all_configs, config, mines);
-
 #endif
-  
+
   return 0;
 }

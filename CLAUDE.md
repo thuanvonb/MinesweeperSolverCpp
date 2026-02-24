@@ -13,7 +13,7 @@ g++ -std=c++17 -O2 Board.cpp Cell.cpp EndgameSolver.cpp Group.cpp MinesweeperSol
 
 **WebAssembly (Emscripten):**
 ```bash
-em++ -std=c++17 -O2 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS="[\"ccall\",\"cwrap\",\"getValue\",\"setValue\",\"HEAP32\"]" -s MODULARIZE=1 -s EXPORT_NAME="MinesweeperModule" -s EXPORTED_FUNCTIONS="[\"_solveBoard\",\"_malloc\",\"_free\"]" -s ASYNCIFY=1 Board.cpp Cell.cpp EndgameSolver.cpp Group.cpp MinesweeperSolver.cpp Solver.cpp Utils.cpp -o docs/MinesweeperSolver.js
+em++ -std=c++17 -O2 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS="[\"ccall\",\"cwrap\",\"getValue\",\"setValue\",\"HEAP32\"]" -s MODULARIZE=1 -s EXPORT_NAME="MinesweeperModule" -s EXPORTED_FUNCTIONS="[\"_solveBoard\",\"_solveEndgame\",\"_malloc\",\"_free\"]" -s ASYNCIFY=1 Board.cpp Cell.cpp EndgameSolver.cpp Group.cpp MinesweeperSolver.cpp Solver.cpp Utils.cpp -o docs/MinesweeperSolver.js
 ```
 
 **Run (native):** reads from `minesweeper.inp` (format: `height width mines` then grid values). Only runs when `BUILD_EMSDK` is not defined in `MinesweeperSolver.cpp`.
@@ -36,9 +36,11 @@ The solver computes per-cell mine probabilities for a Minesweeper board. There a
 
 - **Solver::tryWarp**: Given a cell and whether it's a mine, creates a "warped" board with that assumption, re-solves, and samples a consistent mine configuration using backward DP over chain mine counts and random sampling.
 
+- **EndgameSolver** (`EndgameSolver.h/cpp`): When the number of possible mine configurations is small (≤`MAX_ENDGAME_CONFIGS`), computes exact winning probability under perfect play by building a decision tree over the belief state (set of surviving configurations). Uses `uint64_t` bitmasks for revealed cells (≤64 unrevealed cells) and a `ConfigMask` pair for up to 128 configs. The `solve()` method recursively partitions configs by observation (flood-fill result + cell values) after each click, memoized by `(revealedMask, configMask)`. `solveEndgame()` orchestrates config enumeration, precomputation, and the game tree search, returning the optimal win probability and best first move.
+
 ### Key Constants (`Macros.h`)
 
-Cell values: `CELL_FLOATING(-4)`, `CELL_SAFE(-3)`, `CELL_FLAG(-2)`, `CELL_UNDISCOVERED(-1)`. Group relations: `RELATION_SUBSET`, `RELATION_EQUAL`, `RELATION_SUPERSET`, `RELATION_DISJOINT`, `RELATION_JOINT`.
+Cell values: `CELL_FLOATING(-4)`, `CELL_SAFE(-3)`, `CELL_FLAG(-2)`, `CELL_UNDISCOVERED(-1)`. Group relations: `RELATION_SUBSET`, `RELATION_EQUAL`, `RELATION_SUPERSET`, `RELATION_DISJOINT`, `RELATION_JOINT`. Endgame limits: `MAX_ENDGAME_CONFIGS(100)`, `MAX_ENDGAME_CELLS(64)`.
 
 ### Solver Algorithm Flow
 
@@ -58,4 +60,4 @@ height width mines
 ## Platform Notes
 
 - `getCombinations()` uses `__popcnt` on MSVC and `__builtin_popcount` on GCC/Clang (compile-time conditional).
-- `EndgameSolver` is a stub class wrapping `Solver` — endgame solving is currently in development on the `dev-endgame-solver` branch.
+- `EndgameSolver` computes optimal endgame play when configs ≤ `MAX_ENDGAME_CONFIGS` and unrevealed cells ≤ `MAX_ENDGAME_CELLS`. WASM export: `solveEndgame(nrows, ncols, nums, mines, winProb, bestRow, bestCol)`.
