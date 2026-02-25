@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minesweeper Sandbox - Board Editor</title>
+  <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>💣 Minesweeper Sandbox</h1>
+    <div class="subtitle">Build your own board and analyze it</div>
+
+    <div class="controls">
+      <div class="sandbox-params">
+        <div class="param-group">
+          <label>Width</label>
+          <input type="number" id="paramWidth" min="2" max="50" value="9">
+        </div>
+        <div class="param-group">
+          <label>Height</label>
+          <input type="number" id="paramHeight" min="2" max="30" value="9">
+        </div>
+        <div class="param-group">
+          <label>Mines (excl. flags)</label>
+          <input type="number" id="paramMines" min="0" max="500" value="10">
+        </div>
+      </div>
+      <div id='control-btns'>
+        <button onclick="resizeBoard()">Resize</button>
+        <button onclick="analyzeBoard()" id="analyzeBtn" disabled>Analyze</button>
+        <button onclick="analyzeEndgame()" id="endgameBtn" disabled>Endgame</button>
+      </div>
+    </div>
+
+    <div class='board-container'>
+      <div class="board" id="board"></div>
+    </div>
+    <div class="analysis-legend" id="legend" style="display:none;">
+      <div class="legend-item"><div class="legend-color" style="background:#27ae60;"></div> Safe (0%)</div>
+      <div class="legend-item"><div class="legend-color" style="background:#f39c12;"></div> Uncertain</div>
+      <div class="legend-item"><div class="legend-color" style="background:#e74c3c;"></div> Mine (100%)</div>
+      <div class="legend-item" id="winProbLabel" style="display:none;">Win: <span id="winProbValue">N/A</span></div>
+    </div>
+    <div class="message" id="message" style="display:none;"></div>
+    <div class="instructions">Left-click to toggle revealed/unrevealed • Right-click to toggle flag • Scroll on revealed cell to change number</div>
+  </div>
+
+  <script type="text/javascript" src="MinesweeperSolver.js"></script>
+  <script src="shared.js"></script>
+  <script src='sandbox.js'></script>
+</body>
+</html>

@@ -53,7 +53,6 @@ Solver::Solver(vector<vector<int>> rd) : board(rd) {
       Cell* c = board.getCellMutable(i, j);
       if (c->value == CELL_SAFE) {
         c->minePerc = 0;
-        this->solvedCells.insert(c);
         continue;
       }
       Group* group = new Group(i, j, board);
