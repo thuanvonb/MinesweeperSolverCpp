@@ -12,6 +12,7 @@ g++ -std=c++17 -O2 Board.cpp Cell.cpp EndgameSolver.cpp Group.cpp MinesweeperSol
 ```
 
 **WebAssembly (Emscripten):**
+> Before using `em++`, look for its location using where command
 ```bash
 em++ -std=c++17 -O2 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s EXPORTED_RUNTIME_METHODS="[\"ccall\",\"cwrap\",\"getValue\",\"setValue\",\"HEAP32\",\"HEAPU8\"]" -s MODULARIZE=1 -s EXPORT_NAME="MinesweeperModule" -s EXPORTED_FUNCTIONS="[\"_solveBoard\",\"_solveEndgame\",\"_malloc\",\"_free\"]" -s ASYNCIFY=1 Board.cpp Cell.cpp EndgameSolver.cpp Group.cpp MinesweeperSolver.cpp Solver.cpp Utils.cpp -o docs/MinesweeperSolver.js
 ```
