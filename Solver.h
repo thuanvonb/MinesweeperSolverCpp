@@ -42,6 +42,7 @@ public:
   set<Cell*> solvedCells;
   bool solved;
   bool valid_input;
+  bool canEndgame;
   vector<Cell*> noNeighbors;
   vector<Cell*> groupedCells;
   

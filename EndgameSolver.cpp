@@ -188,6 +188,40 @@ double EndgameSolver::solve(uint64_t revealedMask, ConfigMask configMask) {
   auto it = memo.find(key);
   if (it != memo.end()) return it->second;
 
+  // First, click any cell that is safe in ALL alive configs (free information)
+  for (int i = 0; i < numCells; ++i) {
+    if ((revealedMask >> i) & 1) continue;
+    bool safeInAll = true;
+    for (int c = 0; c < numConfigs; ++c) {
+      if (!configMask.getBit(c)) continue;
+      if (configMine[c][i]) { safeInAll = false; break; }
+    }
+    if (safeInAll) {
+      // This cell is safe in all configs, click it for free
+      map<ObservationKey, ConfigMask> obsGroups;
+      for (int c = 0; c < numConfigs; ++c) {
+        if (!configMask.getBit(c)) continue;
+        uint64_t newRevealed = simulateReveal(i, c, revealedMask);
+        uint64_t newlyRevealed = newRevealed & ~revealedMask;
+        ObservationKey obsKey;
+        obsKey.newRevealedMask = newRevealed;
+        for (int j = 0; j < numCells; ++j) {
+          if ((newlyRevealed >> j) & 1)
+            obsKey.values.push_back(configRevealValue[c][j]);
+        }
+        obsGroups[obsKey].setBit(c);
+      }
+      double prob = 0.0;
+      for (auto& [obsKey, groupMask] : obsGroups) {
+        int groupSize = groupMask.popcount();
+        prob += (double)groupSize / totalAlive * solve(obsKey.newRevealedMask, groupMask);
+      }
+      memo[key] = prob;
+      return prob;
+    }
+  }
+
+  // No deterministically safe cell exists, must guess
   double bestProb = 0.0;
 
   for (int i = 0; i < numCells; ++i) {
@@ -243,6 +277,13 @@ EndgameResult EndgameSolver::solveEndgame(int mines, int maxConfigs) {
   if (numCells == 0) {
     result.winProbability = 1.0;
     result.valid = true;
+    for (Cell* c : solver.solvedCells) {
+      if (c->minePerc == 0.f && c->value == CELL_SAFE) {
+        result.bestRow = c->r;
+        result.bestCol = c->c;
+        break;
+      }
+    }
     return result;
   }
 
@@ -259,43 +300,98 @@ EndgameResult EndgameSolver::solveEndgame(int mines, int maxConfigs) {
   double winProb = solve(initialRevealed, allConfigs);
 
   // Find best first move by replaying the root decision
+  // First check for cells safe in all configs (click for free)
   int bestRow = -1, bestCol = -1;
   double bestProb = -1.0;
 
   for (int i = 0; i < numCells; ++i) {
-    bool anySafe = false;
+    bool safeInAll = true;
     for (int c = 0; c < numConfigs; ++c) {
-      if (allConfigs.getBit(c) && !configMine[c][i]) { anySafe = true; break; }
+      if (configMine[c][i]) { safeInAll = false; break; }
     }
-    if (!anySafe) continue;
-
-    map<ObservationKey, ConfigMask> obsGroups;
-    for (int c = 0; c < numConfigs; ++c) {
-      if (!allConfigs.getBit(c)) continue;
-      if (configMine[c][i]) continue;
-
-      uint64_t newRevealed = simulateReveal(i, c, initialRevealed);
-
-      ObservationKey obsKey;
-      obsKey.newRevealedMask = newRevealed;
-      for (int j = 0; j < numCells; ++j) {
-        if ((newRevealed >> j) & 1)
-          obsKey.values.push_back(configRevealValue[c][j]);
-      }
-
-      obsGroups[obsKey].setBit(c);
-    }
-
-    double prob = 0.0;
-    for (auto& [obsKey, groupMask] : obsGroups) {
-      int groupSize = groupMask.popcount();
-      prob += (double)groupSize / numConfigs * solve(obsKey.newRevealedMask, groupMask);
-    }
-
-    if (prob > bestProb) {
-      bestProb = prob;
+    if (safeInAll) {
       bestRow = cellPos[i].first;
       bestCol = cellPos[i].second;
+      bestProb = winProb;
+      break;
+    }
+  }
+
+  // Check solver's deterministically safe cells (not in endgame cell list)
+  if (bestRow == -1) {
+    for (Cell* c : solver.solvedCells) {
+      if (c->minePerc == 0.f && c->value == CELL_SAFE) {
+        bestRow = c->r;
+        bestCol = c->c;
+        break;
+      }
+    }
+  }
+
+  // If no safe cell at all, find best guess
+  if (bestRow == -1) {
+    for (int i = 0; i < numCells; ++i) {
+      bool anySafe = false;
+      for (int c = 0; c < numConfigs; ++c) {
+        if (allConfigs.getBit(c) && !configMine[c][i]) { anySafe = true; break; }
+      }
+      if (!anySafe) continue;
+
+      map<ObservationKey, ConfigMask> obsGroups;
+      for (int c = 0; c < numConfigs; ++c) {
+        if (!allConfigs.getBit(c)) continue;
+        if (configMine[c][i]) continue;
+
+        uint64_t newRevealed = simulateReveal(i, c, initialRevealed);
+
+        ObservationKey obsKey;
+        obsKey.newRevealedMask = newRevealed;
+        for (int j = 0; j < numCells; ++j) {
+          if ((newRevealed >> j) & 1)
+            obsKey.values.push_back(configRevealValue[c][j]);
+        }
+
+        obsGroups[obsKey].setBit(c);
+      }
+
+      double prob = 0.0;
+      for (auto& [obsKey, groupMask] : obsGroups) {
+        int groupSize = groupMask.popcount();
+        prob += (double)groupSize / numConfigs * solve(obsKey.newRevealedMask, groupMask);
+      }
+
+      if (prob > bestProb) {
+        bestProb = prob;
+        bestRow = cellPos[i].first;
+        bestCol = cellPos[i].second;
+      }
+    }
+  }
+
+  // Fallback: if no best move found but board is won, pick any safe cell
+  if (bestRow == -1) {
+    // Try any non-mine endgame cell
+    for (int i = 0; i < numCells; ++i) {
+      bool mineInAll = true;
+      for (int c = 0; c < numConfigs; ++c) {
+        if (!configMine[c][i]) { mineInAll = false; break; }
+      }
+      if (!mineInAll) {
+        bestRow = cellPos[i].first;
+        bestCol = cellPos[i].second;
+        break;
+      }
+    }
+  }
+
+  // Still no best move: all endgame cells are mines, pick any solver-safe cell
+  if (bestRow == -1) {
+    for (Cell* c : solver.solvedCells) {
+      if (c->minePerc == 0.f && c->value == CELL_SAFE) {
+        bestRow = c->r;
+        bestCol = c->c;
+        break;
+      }
     }
   }
 

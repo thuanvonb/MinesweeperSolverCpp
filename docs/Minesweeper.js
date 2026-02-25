@@ -1,6 +1,7 @@
 MinesweeperModule().then(module => {
   window.Module = module
-  window.solveBoard = Module.cwrap('solveBoard', 'number', ['number', 'number', 'number', 'number', 'number'], { async: true });      
+  window.solveBoard = Module.cwrap('solveBoard', 'number', ['number', 'number', 'number', 'number', 'number', 'number'], { async: true });
+  window.solveEndgameWasm = Module.cwrap('solveEndgame', 'number', ['number', 'number', 'number', 'number', 'number', 'number', 'number'], { async: true });
   document.getElementById('analyzeBtn').disabled = false;
 });
 
@@ -11,10 +12,12 @@ async function solveMinesweeper(board, mines) {
   const ptr = Module._malloc(board_flat.length * 4);
   Module.HEAP32.set(board_flat, ptr / 4)
   const outputPtr = Module._malloc(board_flat.length * 4)
-  let valid = await solveBoard(nrows, ncols, ptr, mines, outputPtr)
+  const canEndgamePtr = Module._malloc(1);
+  let valid = await solveBoard(nrows, ncols, ptr, mines, outputPtr, canEndgamePtr)
   const output = Array.from(
     new Float32Array(Module.HEAP32.buffer, outputPtr, board_flat.length)
   );
+  const canEndgame = Module.HEAPU8[canEndgamePtr] !== 0;
   const result2D = [];
   for (let i = 0; i < nrows; i++) {
     result2D.push(output.slice(i * ncols, (i + 1) * ncols));
@@ -22,10 +25,12 @@ async function solveMinesweeper(board, mines) {
 
   Module._free(ptr);
   Module._free(outputPtr);
+  Module._free(canEndgamePtr);
 
   return {
-    valid: valid, 
-    result: valid ? result2D : null
+    valid: valid,
+    result: valid ? result2D : null,
+    canEndgame: canEndgame
   }
 }
 
@@ -48,6 +53,11 @@ let rows, cols, mineCount;
 let mouseButtons = { left: false, right: false };
 let analysisOverlay = null;
 let analyzeMode = false;
+let endgameSolvable = false;
+let endgameMode = false;
+let bestMoveRow = -1;
+let bestMoveCol = -1;
+let winProbability = null;
 
 document.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -65,6 +75,11 @@ function startGame(config) {
   timer = 0;
   analysisOverlay = null;
   analyzeMode = false;
+  endgameSolvable = false;
+  endgameMode = false;
+  bestMoveRow = -1;
+  bestMoveCol = -1;
+  winProbability = null;
 
   clearInterval(timerInterval);
   document.getElementById('timer').textContent = '0';
@@ -72,6 +87,7 @@ function startGame(config) {
   document.getElementById('message').style.display = 'none';
   document.getElementById('legend').style.display = 'none';
   updateAnalyzeButton();
+  updateEndgameButton();
 
   renderBoard();
 }
@@ -153,6 +169,10 @@ function renderBoard() {
         overlay.style.background = getProbabilityColor(prob);
         overlay.textContent = prob.toFixed(0) + '%';
         cell.appendChild(overlay);
+      }
+
+      if (endgameMode && r === bestMoveRow && c === bestMoveCol) {
+        cell.classList.add('best-move');
       }
 
       cell.addEventListener('mousedown', (e) => handleMouseDown(e, r, c));
@@ -402,6 +422,7 @@ function updateAnalyzeButton() {
     btn.textContent = 'Analyze';
     btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
   }
+  updateEndgameButton();
 }
 
 async function runAnalysis() {
@@ -421,9 +442,21 @@ async function runAnalysis() {
   }
 
   try {
-    const { valid, result } = await solveMinesweeper(inputBoard, mineCount);
+    const { valid, result, canEndgame } = await solveMinesweeper(inputBoard, mineCount);
+    endgameSolvable = canEndgame;
+    if (!canEndgame && endgameMode) {
+      endgameMode = false;
+      bestMoveRow = -1;
+      bestMoveCol = -1;
+      winProbability = null;
+    }
+    updateEndgameButton();
+    updateWinProbLabel();
     if (valid && analyzeMode) {
       analysisOverlay = result;
+      if (endgameMode && canEndgame) {
+        await runEndgameAnalysis(inputBoard);
+      }
       renderBoard();
       checkAllUncertain(result);
     }
@@ -453,7 +486,96 @@ async function analyzeBoard() {
     await runAnalysis();
   } else {
     analysisOverlay = null;
+    endgameMode = false;
+    bestMoveRow = -1;
+    bestMoveCol = -1;
+    winProbability = null;
+    endgameSolvable = false;
+    updateEndgameButton();
+    updateWinProbLabel();
     document.getElementById('legend').style.display = 'none';
+    renderBoard();
+  }
+}
+
+function updateEndgameButton() {
+  const btn = document.getElementById('endgameBtn');
+  btn.disabled = !analyzeMode || !endgameSolvable;
+  if (endgameMode) {
+    btn.textContent = 'Endgame';
+    btn.style.background = 'linear-gradient(135deg, #f39c12 0%, #f1c40f 100%)';
+  } else {
+    btn.textContent = 'Endgame';
+    btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+  }
+}
+
+function updateWinProbLabel() {
+  const label = document.getElementById('winProbLabel');
+  const value = document.getElementById('winProbValue');
+  if (!analyzeMode) {
+    label.style.display = 'none';
+    return;
+  }
+  label.style.display = 'flex';
+  if (endgameMode && winProbability !== null) {
+    value.textContent = (winProbability * 100).toFixed(2) + '%';
+  } else if (!endgameSolvable) {
+    value.textContent = 'N/A';
+  } else {
+    value.textContent = 'N/A';
+  }
+}
+
+async function runEndgameAnalysis(inputBoard) {
+  const board_flat = inputBoard.flat();
+  const nrows = inputBoard.length;
+  const ncols = inputBoard[0].length;
+
+  const ptr = Module._malloc(board_flat.length * 4);
+  Module.HEAP32.set(board_flat, ptr / 4);
+  const winProbPtr = Module._malloc(4);
+  const bestRowPtr = Module._malloc(4);
+  const bestColPtr = Module._malloc(4);
+
+  try {
+    const valid = await solveEndgameWasm(nrows, ncols, ptr, mineCount, winProbPtr, bestRowPtr, bestColPtr);
+    if (valid) {
+      winProbability = Module.getValue(winProbPtr, 'float');
+      bestMoveRow = Module.getValue(bestRowPtr, 'i32');
+      bestMoveCol = Module.getValue(bestColPtr, 'i32');
+    } else {
+      winProbability = null;
+      bestMoveRow = -1;
+      bestMoveCol = -1;
+    }
+  } catch (e) {
+    console.error("Endgame analysis failed:", e);
+    winProbability = null;
+    bestMoveRow = -1;
+    bestMoveCol = -1;
+  } finally {
+    Module._free(ptr);
+    Module._free(winProbPtr);
+    Module._free(bestRowPtr);
+    Module._free(bestColPtr);
+  }
+  updateWinProbLabel();
+}
+
+async function analyzeEndgame() {
+  if (!analyzeMode || !endgameSolvable) return;
+
+  endgameMode = !endgameMode;
+  updateEndgameButton();
+
+  if (endgameMode) {
+    await runAnalysis();
+  } else {
+    bestMoveRow = -1;
+    bestMoveCol = -1;
+    winProbability = null;
+    updateWinProbLabel();
     renderBoard();
   }
 }

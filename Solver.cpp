@@ -66,6 +66,7 @@ Solver::Solver(vector<vector<int>> rd) : board(rd) {
     }
   }
   solved = false;
+  canEndgame = false;
 
   noNeighbors = board.noNeighborsCells();
 
@@ -412,22 +413,30 @@ bool Solver::generalSolve(int mines) { // number of unsolved mines (flags in the
   for (Cell* c : noNeighbors)
     c->minePerc = expectedRemain / noNeighbors.size() * 100;
 
-  /*uint32_t numberOfConfiguration = 0;
-  const uint64_t bound = (uint64_t) 1e7;
-  for (int numMines = low; numMines <= high; ++numMines) {
-    uint64_t nConfig = weight[numMines] * bounded_nCr(noNeighbors.size(), mines - (numMines + minMines), bound);
-    if (nConfig == bound)
-      break;
-    numberOfConfiguration += nConfig;
-    if (numberOfConfiguration >= bound)
-      numberOfConfiguration = bound;
+  // Check endgame eligibility
+  int totalUnrevealedCells = 0;
+  for (const Solver::ChainSolution& cs : chain_sols)
+    totalUnrevealedCells += (int)cs.relatedCells.size();
+  totalUnrevealedCells += (int)noNeighbors.size();
+
+  canEndgame = false;
+  if (totalUnrevealedCells <= MAX_ENDGAME_CELLS) {
+    const uint64_t bound = MAX_ENDGAME_CONFIGS + 1;
+    uint64_t numberOfConfiguration = 0;
+    for (int numMines = low; numMines <= high; ++numMines) {
+      uint64_t nConfig = weight[numMines] * bounded_nCr(noNeighbors.size(), mines - (numMines + minMines), bound);
+      if (nConfig >= bound) {
+        numberOfConfiguration = bound;
+        break;
+      }
+      numberOfConfiguration += nConfig;
+      if (numberOfConfiguration >= bound) {
+        numberOfConfiguration = bound;
+        break;
+      }
+    }
+    canEndgame = (numberOfConfiguration > 0 && numberOfConfiguration <= MAX_ENDGAME_CONFIGS);
   }
-  
-  cout << "Number of configurations: " << numberOfConfiguration << std::endl;
-  if (numberOfConfiguration == bound)
-    cout << "Not be directly solvable" << std::endl;
-  else
-    cout << "Can be directly solvable" << std::endl;*/
 
   return true;
 }

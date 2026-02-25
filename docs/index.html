@@ -22,6 +22,7 @@
         <div id='control-btns'>
           <button onclick="initGame()">New Game</button>
           <button onclick="analyzeBoard()" id="analyzeBtn" disabled>Analyze</button>
+          <button onclick="analyzeEndgame()" id="endgameBtn" disabled>Endgame</button>
         </div>
       <!-- </div> -->
     </div>
@@ -38,6 +39,7 @@
       <div class="legend-item"><div class="legend-color" style="background:#27ae60;"></div> Safe (0%)</div>
       <div class="legend-item"><div class="legend-color" style="background:#f39c12;"></div> Uncertain</div>
       <div class="legend-item"><div class="legend-color" style="background:#e74c3c;"></div> Mine (100%)</div>
+      <div class="legend-item" id="winProbLabel" style="display:none;">Win: <span id="winProbValue">N/A</span></div>
     </div>
     <div class="message" id="message" style="display:none;"></div>
     <div class="instructions">Left-click to reveal • Right-click to flag • Both-click to chord • Don't blow up</div>

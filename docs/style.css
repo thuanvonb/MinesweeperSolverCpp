@@ -9,7 +9,7 @@ body {
   margin: 0;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   padding: 20px;
 }
 .container {
@@ -17,6 +17,8 @@ body {
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  min-height: calc(100vh - 40px);
+  width: calc(100vw - 40px);
 }
 h1 {
   color: #fff;
@@ -89,6 +91,7 @@ button:disabled {
 .board-container{
   display: flex;
   justify-content: center;
+  overflow-x: auto;
 }
 .board {
   display: grid;
@@ -303,4 +306,14 @@ button:disabled {
   width: 14px;
   height: 14px;
   border-radius: 3px;
+}
+.cell.best-move {
+  outline: 6px solid white;
+  outline-offset: -2px;
+  z-index: 1;
+}
+#winProbLabel {
+  font-weight: bold;
+  color: #f1c40f;
+  margin-left: auto;
 }

@@ -4,7 +4,7 @@
 #include "Solver.h"
 #include "EndgameSolver.h"
 
-// #define BUILD_EMSDK
+#define BUILD_EMSDK
 
 using std::ifstream;
 using std::cout;
@@ -12,12 +12,12 @@ using std::vector;
 
 #ifdef BUILD_EMSDK
 extern "C" {
-  bool solveBoard(int nrows, int ncols, int* nums, int mines, float* prob);
+  bool solveBoard(int nrows, int ncols, int* nums, int mines, float* prob, bool* canEndgame);
   bool solveEndgame(int nrows, int ncols, int* nums, int mines, float* winProb, int* bestRow, int* bestCol);
 }
 #endif
 
-bool solveBoard(int nrows, int ncols, int* nums, int mines, float* prob) {
+bool solveBoard(int nrows, int ncols, int* nums, int mines, float* prob, bool* canEndgame) {
   vector<vector<int>> rd(nrows, vector<int>(ncols));
   for (int i = 0; i < nrows; ++i) {
     for (int j = 0; j < ncols; ++j)
@@ -26,7 +26,7 @@ bool solveBoard(int nrows, int ncols, int* nums, int mines, float* prob) {
 
   Solver solver(rd);
   bool valid = solver.generalSolve(mines);
-  
+
   if (valid) {
     for (int i = 0; i < nrows; ++i) {
       for (int j = 0; j < ncols; ++j) {
@@ -36,6 +36,7 @@ bool solveBoard(int nrows, int ncols, int* nums, int mines, float* prob) {
     }
   }
 
+  *canEndgame = solver.canEndgame;
   return valid;
 }
 
