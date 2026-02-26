@@ -68,9 +68,33 @@ bool EndgameSolver::buildConfigurations(int mines, int maxConfigs) {
   vector<Cell*>& noNeighbors = solver.noNeighbors;
   allCells.insert(allCells.end(), noNeighbors.begin(), noNeighbors.end());
 
+  int uncertainCellCount = (int)allCells.size();
+
+  // Find solver-safe cells adjacent to uncertain cells.
+  // These are safe in ALL configs but clicking them reveals a number
+  // that depends on the mine configuration, providing information.
+  vector<vector<int>> tmpPosToIdx(solver.board.height, vector<int>(solver.board.width, -1));
+  for (int i = 0; i < uncertainCellCount; ++i)
+    tmpPosToIdx[allCells[i]->r][allCells[i]->c] = i;
+
+  for (Cell* c : solver.solvedCells) {
+    if (c->minePerc != 0.f || c->value != CELL_SAFE) continue;
+    if (tmpPosToIdx[c->r][c->c] >= 0) continue;
+    bool adjacent = false;
+    for (int dr = -1; dr <= 1 && !adjacent; ++dr) {
+      for (int dc = -1; dc <= 1 && !adjacent; ++dc) {
+        if (dr == 0 && dc == 0) continue;
+        int nr = c->r + dr, nc = c->c + dc;
+        if (solver.board.isValidCoord(nr, nc) && tmpPosToIdx[nr][nc] >= 0)
+          adjacent = true;
+      }
+    }
+    if (adjacent) allCells.push_back(c);
+  }
+
   if ((int)allCells.size() > MAX_ENDGAME_CELLS) return false;
 
-  vector<int8_t> config(allCells.size(), 0);
+  vector<int8_t> config(uncertainCellCount, 0);
   vector<vector<int8_t>> all_configs;
   combineAllGroupsConfigs(chain_sols, all_configs, config, remainingMines, 0, 0);
 
@@ -88,9 +112,10 @@ bool EndgameSolver::buildConfigurations(int mines, int maxConfigs) {
 
   configMine.assign(numConfigs, vector<bool>(numCells, false));
   for (int c = 0; c < numConfigs; ++c) {
-    for (int i = 0; i < numCells; ++i) {
+    for (int i = 0; i < uncertainCellCount; ++i) {
       configMine[c][i] = (all_configs[c][i] == -1);
     }
+    // Cells beyond uncertainCellCount are solver-safe, always false (non-mine)
   }
 
   return true;
