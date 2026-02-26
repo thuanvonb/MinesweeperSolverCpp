@@ -372,15 +372,16 @@ bool Solver::generalSolve(int mines) { // number of unsolved mines (flags in the
   if (sumW == 0)
     weight[0] = 1;
   else {
-    vector<int> remaining_mines(weight.size(), 0);
+    vector<int> remaining_mines(high - low + 1);
+    vector<int> weight_slice(high - low + 1);
     for (int i = low; i <= high; ++i) {
-      int no_mines = i + minMines;
-      remaining_mines[i] = mines - no_mines;
+      remaining_mines[i - low] = mines - (i + minMines);
+      weight_slice[i - low] = weight[i];
     }
 
-    vector<double> p = computeNormalizedBinomials(noNeighbors.size(), remaining_mines, weight);
-    for (int i = low; i <= high; ++i)
-      noMinesProb[i-low] = p[i-low];
+    vector<double> p = computeNormalizedBinomials(noNeighbors.size(), remaining_mines, weight_slice);
+    for (int i = 0; i <= high - low; ++i)
+      noMinesProb[i] = p[i];
 
     int idx = 0;
     for (const Solver::ChainSolution& cs : chain_sols) {
@@ -772,14 +773,15 @@ void Solver::sampleConfiguration(const Solver& solver, int mines,
   if (sumW == 0) {
     noMinesProb[0] = 1.0;
   } else {
-    vector<int> remaining_mines(weight.size(), 0);
+    vector<int> remaining_mines(high - low + 1);
+    vector<int> weight_slice(high - low + 1);
     for (int i = low; i <= high; ++i) {
-      int no_mines = i + minMines;
-      remaining_mines[i] = adjustedMines - no_mines;
+      remaining_mines[i - low] = adjustedMines - (i + minMines);
+      weight_slice[i - low] = weight[i];
     }
-    vector<double> p = computeNormalizedBinomials(solver.noNeighbors.size(), remaining_mines, weight);
-    for (int i = low; i <= high; ++i)
-      noMinesProb[i - low] = p[i - low];
+    vector<double> p = computeNormalizedBinomials(solver.noNeighbors.size(), remaining_mines, weight_slice);
+    for (int i = 0; i <= high - low; ++i)
+      noMinesProb[i] = p[i];
   }
 
   // Step 5b: Sample total chain mine count from noMinesProb
