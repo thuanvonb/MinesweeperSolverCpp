@@ -1,21 +1,48 @@
+// Cell state constants
+const REVEALED = 0;
+const UNREVEALED = 1;
+const FLAGGED = 2;
+
 // Board state
 let rows = 9, cols = 9, mineCount = 10;
 // cellValues[r][c]: the number displayed on a revealed cell (0-8)
 let cellValues = [];
-// cellState[r][c]: 'revealed' | 'unrevealed' | 'flagged'
+// cellState[r][c]: REVEALED | UNREVEALED | FLAGGED
 let cellState = [];
 
 let hoveredCell = null;
+// Drag state for mass reveal/unreveal
+let dragAction = null; // 'reveal' | 'unreveal' | null
+let dragVisited = new Set();
+
+document.addEventListener('mouseup', () => {
+  if (dragAction) {
+    dragAction = null;
+    dragVisited.clear();
+    if (analyzeMode) runAnalysis();
+  }
+});
+
 document.addEventListener('keydown', (e) => {
   if (!hoveredCell) return;
   const { r, c } = hoveredCell;
-  if (cellState[r][c] !== 'revealed') return;
+
   if (e.key === '-') {
+    // Don't-care toggle — only on revealed cells
+    if (cellState[r][c] !== REVEALED) return;
     cellValues[r][c] = (cellValues[r][c] === -3) ? 0 : -3;
   } else {
     const num = parseInt(e.key);
     if (isNaN(num) || num < 0 || num > 8) return;
-    cellValues[r][c] = (cellValues[r][c] === num) ? 0 : num;
+    if (cellState[r][c] === UNREVEALED) {
+      // Reveal and set value in one step
+      cellState[r][c] = REVEALED;
+      cellValues[r][c] = num;
+    } else if (cellState[r][c] === REVEALED) {
+      cellValues[r][c] = (cellValues[r][c] === num) ? 0 : num;
+    } else {
+      return;
+    }
   }
   renderBoard();
   if (analyzeMode) runAnalysis();
@@ -31,7 +58,7 @@ function onAnalyzeOff() {
 
 function initBoard() {
   cellValues = Array(rows).fill().map(() => Array(cols).fill(0));
-  cellState = Array(rows).fill().map(() => Array(cols).fill('revealed'));
+  cellState = Array(rows).fill().map(() => Array(cols).fill(REVEALED));
   analysisOverlay = null;
   endgameSolvable = false;
   endgameMode = false;
@@ -79,7 +106,7 @@ function renderBoard() {
 
       const state = cellState[r][c];
 
-      if (state === 'revealed') {
+      if (state === REVEALED) {
         cell.classList.add('revealed');
         if (cellValues[r][c] === -3) {
           cell.textContent = '?';
@@ -88,13 +115,13 @@ function renderBoard() {
           cell.textContent = cellValues[r][c];
           cell.classList.add(`num-${cellValues[r][c]}`);
         }
-      } else if (state === 'flagged') {
+      } else if (state === FLAGGED) {
         cell.classList.add('flagged');
         cell.textContent = '🚩';
       }
 
       // Analysis overlay on unrevealed (non-flagged) cells
-      if (analysisOverlay && state === 'unrevealed') {
+      if (analysisOverlay && state === UNREVEALED) {
         const prob = analysisOverlay[r][c];
         const overlay = document.createElement('div');
         overlay.className = 'overlay';
@@ -108,9 +135,12 @@ function renderBoard() {
       }
 
       cell.addEventListener('mousedown', (e) => handleMouseDown(e, r, c));
-      cell.addEventListener('wheel', (e) => handleWheel(e, r, c));
-      cell.addEventListener('mouseenter', () => { hoveredCell = { r, c }; });
+      cell.addEventListener('mouseenter', (e) => {
+        hoveredCell = { r, c };
+        handleDragEnter(r, c);
+      });
       cell.addEventListener('mouseleave', () => { hoveredCell = null; });
+      cell.addEventListener('wheel', (e) => handleWheel(e, r, c));
 
       boardEl.appendChild(cell);
     }
@@ -120,42 +150,53 @@ function renderBoard() {
 function handleMouseDown(e, r, c) {
   e.preventDefault();
   if (e.button === 0) {
-    handleLeftClick(r, c);
+    // Determine drag action from first cell
+    dragAction = (cellState[r][c] === REVEALED) ? 'unreveal' : 'reveal';
+    dragVisited.clear();
+    dragVisited.add(`${r},${c}`);
+    applyDragAction(r, c);
+    renderBoard();
   } else if (e.button === 2) {
     handleRightClick(r, c);
   }
 }
 
-function handleLeftClick(r, c) {
+function applyDragAction(r, c) {
   const state = cellState[r][c];
-  if (state === 'revealed') {
-    // Toggle to unrevealed
-    cellState[r][c] = 'unrevealed';
-  } else if (state === 'unrevealed') {
-    // Toggle to revealed
-    cellState[r][c] = 'revealed';
-  } else if (state === 'flagged') {
-    // Unflag first, then reveal — remove flag effects
-    removeFlag(r, c);
-    cellState[r][c] = 'revealed';
+  if (dragAction === 'reveal') {
+    if (state === UNREVEALED) {
+      cellState[r][c] = REVEALED;
+    } else if (state === FLAGGED) {
+      removeFlag(r, c);
+      cellState[r][c] = REVEALED;
+    }
+  } else if (dragAction === 'unreveal') {
+    if (state === REVEALED) {
+      cellState[r][c] = UNREVEALED;
+      cellValues[r][c] = 0;
+    }
   }
+}
+
+function handleDragEnter(r, c) {
+  if (!dragAction) return;
+  const key = `${r},${c}`;
+  if (dragVisited.has(key)) return;
+  dragVisited.add(key);
+  applyDragAction(r, c);
   renderBoard();
-  if (analyzeMode) runAnalysis();
 }
 
 function handleRightClick(r, c) {
   const state = cellState[r][c];
-  if (state === 'flagged') {
-    // Remove flag
+  if (state === FLAGGED) {
     removeFlag(r, c);
-    cellState[r][c] = 'unrevealed';
-  } else if (state === 'unrevealed') {
-    // Place flag
-    cellState[r][c] = 'flagged';
+    cellState[r][c] = UNREVEALED;
+  } else if (state === UNREVEALED) {
+    cellState[r][c] = FLAGGED;
     addFlag(r, c);
-  } else if (state === 'revealed') {
-    // Flag directly from revealed
-    cellState[r][c] = 'flagged';
+  } else if (state === REVEALED) {
+    cellState[r][c] = FLAGGED;
     addFlag(r, c);
   }
   renderBoard();
@@ -163,13 +204,12 @@ function handleRightClick(r, c) {
 }
 
 function addFlag(r, c) {
-  // Increase neighbor numbers by 1
   for (let dr = -1; dr <= 1; dr++) {
     for (let dc = -1; dc <= 1; dc++) {
       if (dr === 0 && dc === 0) continue;
       const nr = r + dr, nc = c + dc;
       if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
-        if (cellState[nr][nc] === 'revealed' && cellValues[nr][nc] !== -3) {
+        if (cellState[nr][nc] === REVEALED && cellValues[nr][nc] !== -3) {
           cellValues[nr][nc] = Math.min(8, cellValues[nr][nc] + 1);
         }
       }
@@ -178,13 +218,12 @@ function addFlag(r, c) {
 }
 
 function removeFlag(r, c) {
-  // Decrease neighbor numbers by 1 (capped at 0)
   for (let dr = -1; dr <= 1; dr++) {
     for (let dc = -1; dc <= 1; dc++) {
       if (dr === 0 && dc === 0) continue;
       const nr = r + dr, nc = c + dc;
       if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
-        if (cellState[nr][nc] === 'revealed' && cellValues[nr][nc] !== -3) {
+        if (cellState[nr][nc] === REVEALED && cellValues[nr][nc] !== -3) {
           cellValues[nr][nc] = Math.max(0, cellValues[nr][nc] - 1);
         }
       }
@@ -194,7 +233,7 @@ function removeFlag(r, c) {
 
 function handleWheel(e, r, c) {
   e.preventDefault();
-  if (cellState[r][c] !== 'revealed') return;
+  if (cellState[r][c] !== REVEALED) return;
 
   if (e.deltaY < 0) {
     // Scroll up — increase number; from -3 (don't-care) wrap to 0
@@ -222,9 +261,9 @@ function getInputBoard() {
     const row = [];
     for (let c = 0; c < cols; c++) {
       const state = cellState[r][c];
-      if (state === 'revealed') {
+      if (state === REVEALED) {
         row.push(cellValues[r][c]);
-      } else if (state === 'flagged') {
+      } else if (state === FLAGGED) {
         row.push(-2); // CELL_FLAG
       } else {
         row.push(-1); // CELL_UNDISCOVERED
@@ -242,7 +281,7 @@ async function runAnalysis() {
   let hasUnrevealed = false;
   for (let r = 0; r < rows && !hasUnrevealed; r++) {
     for (let c = 0; c < cols && !hasUnrevealed; c++) {
-      if (cellState[r][c] !== 'revealed') hasUnrevealed = true;
+      if (cellState[r][c] !== REVEALED) hasUnrevealed = true;
     }
   }
   if (!hasUnrevealed) {
@@ -296,6 +335,29 @@ async function runAnalysis() {
   } catch (e) {
     console.error("Analysis failed:", e);
   }
+}
+
+function revealAll() {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (cellState[r][c] === FLAGGED) removeFlag(r, c);
+      cellState[r][c] = REVEALED;
+    }
+  }
+  renderBoard();
+  if (analyzeMode) runAnalysis();
+}
+
+function unrevealAll() {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (cellState[r][c] === FLAGGED) removeFlag(r, c);
+      cellState[r][c] = UNREVEALED;
+      cellValues[r][c] = 0;
+    }
+  }
+  renderBoard();
+  if (analyzeMode) runAnalysis();
 }
 
 // Initialize
