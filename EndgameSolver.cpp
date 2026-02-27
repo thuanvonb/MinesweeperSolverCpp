@@ -209,7 +209,7 @@ double EndgameSolver::solve(uint64_t revealedMask, ConfigMask configMask) {
   }
   if (!needToClick) return 1.0;
 
-  StateKey key = {revealedMask, configMask.lo, configMask.hi};
+  StateKey key = {revealedMask, configMask.words};
   auto it = memo.find(key);
   if (it != memo.end()) return it->second;
 
@@ -317,7 +317,7 @@ EndgameResult EndgameSolver::solveEndgame(int mines, int maxConfigs) {
   memo.clear();
 
   uint64_t initialRevealed = 0;
-  ConfigMask allConfigs;
+  ConfigMask allConfigs(numConfigs);
   for (int c = 0; c < numConfigs; ++c)
     allConfigs.setBit(c);
 

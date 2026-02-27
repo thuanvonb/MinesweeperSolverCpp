@@ -421,20 +421,17 @@ bool Solver::generalSolve(int mines) { // number of unsolved mines (flags in the
 
   canEndgame = false;
   if (totalUnrevealedCells <= MAX_ENDGAME_CELLS) {
-    const uint64_t bound = MAX_ENDGAME_CONFIGS + 1;
+    const uint64_t bound = 100000;
     uint64_t numberOfConfiguration = 0;
     for (int numMines = low; numMines <= high; ++numMines) {
       uint64_t nConfig = weight[numMines] * bounded_nCr(noNeighbors.size(), mines - (numMines + minMines), bound);
-      if (nConfig >= bound) {
-        numberOfConfiguration = bound;
-        break;
-      }
       numberOfConfiguration += nConfig;
       if (numberOfConfiguration >= bound) {
         numberOfConfiguration = bound;
         break;
       }
     }
+    std::cout << "Number of configurations: " << numberOfConfiguration << (numberOfConfiguration == bound ? "+" : "") << std::endl;
     canEndgame = (numberOfConfiguration > 0 && numberOfConfiguration <= MAX_ENDGAME_CONFIGS);
   }
 

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <chrono>
 #include "Solver.h"
 #include "EndgameSolver.h"
 
@@ -73,8 +74,10 @@ int main() {
 
   Solver solver(rd);
   cout << "Start solving\n";
+  auto t0 = std::chrono::high_resolution_clock::now();
   bool valid = solver.generalSolve(mines);
-  cout << "Done solving\n";
+  auto t1 = std::chrono::high_resolution_clock::now();
+  cout << "Done solving (" << std::chrono::duration<double, std::milli>(t1 - t0).count() << " ms)\n";
 
   if (valid)
     solver.printProb();
@@ -82,11 +85,14 @@ int main() {
   // Try endgame solver
   cout << "\nEndgame solver:\n";
   EndgameSolver endgame(rd);
+  auto t2 = std::chrono::high_resolution_clock::now();
   EndgameResult egResult = endgame.solveEndgame(mines);
+  auto t3 = std::chrono::high_resolution_clock::now();
   if (egResult.valid) {
     printf("Win probability: %.4f%%\n", egResult.winProbability * 100.0);
     printf("Best move: (%d, %d)\n", egResult.bestRow, egResult.bestCol);
     printf("Configs: %d, Cells: %d\n", endgame.numConfigs, endgame.numCells);
+    printf("Endgame time: %.3f ms\n", std::chrono::duration<double, std::milli>(t3 - t2).count());
   } else {
     cout << "Endgame solver not applicable (too many configs or cells)\n";
   }
